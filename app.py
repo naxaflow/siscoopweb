@@ -41,6 +41,11 @@ if uploaded_file:
     # Limpiar filas de títulos o totales
     df = df[~df.iloc[:, 0].astype(str).str.contains("FACTURA|SUBTOTAL|TOTAL|RESUMEN", na=False, case=False)]
     
+    # ====================== DEBUG: COLUMNAS REALES ======================
+    st.subheader("🔍 Columnas detectadas en tu Excel")
+    st.write(list(df.columns))
+    st.info("Copia aquí los nombres exactos de las columnas que corresponden a: eps, ccf, riesgo, numero, N (pensión), etc.")
+    
     # ====================== CONVERSIONES SEGURAS ======================
     numeric_cols = ['N', 'salario', 'pension', 'salud', 'arp', 'caja']
     for col in numeric_cols:
@@ -48,53 +53,56 @@ if uploaded_file:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     
     # ====================== FECHA DE INGRESO (columna F) ======================
-    df['fecha_ingreso'] = pd.to_datetime(df.iloc[:, 5], errors='coerce')
+    if len(df.columns) > 5:
+        df['fecha_ingreso'] = pd.to_datetime(df.iloc[:, 5], errors='coerce')
+    else:
+        df['fecha_ingreso'] = pd.NaT
     
     # ====================== MAPPING EPS / CCF ======================
-    # (mantengo tus mappings completos que ya tenías)
+    # (todavía con placeholders seguros)
     eps_map = { ... }   # ← tu mapping EPS completo
     ccf_map = { ... }   # ← tu mapping CCF completo
     
-    df['cod_eps'] = df['eps'].map(eps_map).fillna('999')
-    df['cod_ccf'] = df['ccf'].map(ccf_map).fillna('999')
+    df['cod_eps'] = df.get('eps', pd.Series(['999']*len(df))).map(eps_map).fillna('999')
+    df['cod_ccf'] = df.get('ccf', pd.Series(['999']*len(df))).map(ccf_map).fillna('999')
     
-    # ====================== RISK MAP R1-R5 (CORREGIDO) ======================
-    # ◄◄◄ REEMPLAZA AQUÍ CON EL MAPPING COMPLETO QUE ME PASASTE "CORRIDO" ◄◄◄
+    # ====================== RISK MAP R1-R5 (CORRECTO) ======================
     risk_map = {
-        'R1': {'tasa': 0.00522, 'actividad': '1949101'},   # ← ESTO ES INCORRECTO
+        'R1': {'tasa': 0.00522, 'actividad': '1949101'},
         'R2': {'tasa': 0.01044, 'actividad': '2329001'},
-        'R3': {'tasa': 0.02436, 'actividad': '2329002'},
-        'R4': {'tasa': 0.04440, 'actividad': '2329003'},
-        'R5': {'tasa': 0.06960, 'actividad': '2329004'},
+        'R3': {'tasa': 0.02436, 'actividad': '3869201'},
+        'R4': {'tasa': 0.0435,  'actividad': '4492301'},
+        'R5': {'tasa': 0.0696,  'actividad': '5439003'},
     }
-    # =====================================================================
     
-    df['riesgo'] = df['riesgo'].str.upper().fillna('R1')
+    riesgo_col = df.get('riesgo', pd.Series(['R1']*len(df)))
+    df['riesgo'] = riesgo_col.str.upper().fillna('R1')
     df['tasa_arp'] = df['riesgo'].map(lambda r: risk_map.get(r, risk_map['R1'])['tasa'])
     df['cod_actividad'] = df['riesgo'].map(lambda r: risk_map.get(r, risk_map['R1'])['actividad'])
     
     # ====================== PENSIÓN (N = 0 → sin pensión) ======================
-    df['pension'] = df.apply(lambda row: 0 if row['N'] == 0 else row['pension'], axis=1)
+    if 'N' in df.columns:
+        df['pension'] = df.apply(lambda row: 0 if row['N'] == 0 else row.get('pension', 0), axis=1)
     
     # ====================== GENERAR TXT ======================
     def generar_planilla_txt(df, periodo, fecha_retiro, retiros_set):
         lineas = []
         for _, row in df.iterrows():
             # Fecha ingreso solo si coincide con el periodo
-            if pd.notna(row['fecha_ingreso']) and row['fecha_ingreso'].to_period('M') == periodo.to_period('M'):
+            if pd.notna(row.get('fecha_ingreso')) and row['fecha_ingreso'].to_period('M') == periodo.to_period('M'):
                 fecha_ing_str = row['fecha_ingreso'].strftime('%Y%m%d')
             else:
                 fecha_ing_str = ''
             
-            # Fecha retiro solo para los documentos marcados
+            # Fecha retiro
             if fecha_retiro and str(row.get('numero', '')).strip() in retiros_set:
                 fecha_ret_str = fecha_retiro.strftime('%Y%m%d')
             else:
                 fecha_ret_str = ''
             
-            linea = f"{row.get('tipo_doc','')},{row.get('numero','')},{row.get('nombre','')},{row['cod_eps']},{row['cod_ccf']},"
-            linea += f"{row.get('salario',0):.0f},{row.get('pension',0):.0f},{row.get('salud',0):.0f},{row['tasa_arp']:.5f},"
-            linea += f"{row['cod_actividad']},{fecha_ing_str},{fecha_ret_str},30"
+            linea = f"{row.get('tipo_doc','')},{row.get('numero','')},{row.get('nombre','')},{row.get('cod_eps','999')},{row.get('cod_ccf','999')},"
+            linea += f"{row.get('salario',0):.0f},{row.get('pension',0):.0f},{row.get('salud',0):.0f},{row.get('tasa_arp',0):.5f},"
+            linea += f"{row.get('cod_actividad','')},{fecha_ing_str},{fecha_ret_str},30"
             lineas.append(linea)
         return "\n".join(lineas)
     
