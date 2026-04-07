@@ -12,7 +12,7 @@ if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file, sheet_name="detalle.rpt", header=9)
         df = df.dropna(subset=["Número"]).reset_index(drop=True)
-        df = df.fillna(0)  # ← Elimina NaN
+        df = df.fillna(0)
 
         st.success(f"✅ {len(df)} afiliados cargados correctamente")
 
@@ -44,7 +44,6 @@ if uploaded_file:
                     eps = {"Nueva EPS": "EPS037", "SANITAS S.A.": "EPS005", "ASMET SALUD": "ESSC62", "MALLAMAS": "EPSIC5"}.get(str(row["Eps"]).strip(), "EPS037")
                     ccf = str(row.get("Caja", "CCF32")).strip() if pd.notna(row.get("Caja")) else "CCF32"
 
-                    # Conversión segura de valores
                     vlr_pension = pd.to_numeric(row.iloc[10], errors='coerce') or 0
                     vlr_arp     = pd.to_numeric(row.iloc[8],  errors='coerce') or 0
                     vlr_caja    = pd.to_numeric(row.iloc[12], errors='coerce') or 0
