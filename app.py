@@ -12,7 +12,7 @@ if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file, sheet_name="detalle.rpt", header=9)
         df = df.dropna(subset=["Número"]).reset_index(drop=True)
-        df = df.fillna(0)                                   # ← Soluciona NaN
+        df = df.fillna(0)  # ← Elimina NaN
 
         st.success(f"✅ {len(df)} afiliados cargados correctamente")
 
@@ -36,14 +36,15 @@ if uploaded_file:
                     num_doc = str(row["Afiliado"]).strip()
                     nombre = str(row["Afiliado"]).strip()
                     partes = nombre.split()
-                    ap1 = (partes[0] if len(partes)>0 else "").ljust(20)
-                    ap2 = (partes[1] if len(partes)>1 else "").ljust(20)
-                    nom1 = (partes[2] if len(partes)>2 else "").ljust(20)
-                    nom2 = (" ".join(partes[3:]) if len(partes)>3 else "").ljust(20)
+                    ap1 = (partes[0] if len(partes) > 0 else "").ljust(20)
+                    ap2 = (partes[1] if len(partes) > 1 else "").ljust(20)
+                    nom1 = (partes[2] if len(partes) > 2 else "").ljust(20)
+                    nom2 = (" ".join(partes[3:]) if len(partes) > 3 else "").ljust(20)
 
                     eps = {"Nueva EPS": "EPS037", "SANITAS S.A.": "EPS005", "ASMET SALUD": "ESSC62", "MALLAMAS": "EPSIC5"}.get(str(row["Eps"]).strip(), "EPS037")
                     ccf = str(row.get("Caja", "CCF32")).strip() if pd.notna(row.get("Caja")) else "CCF32"
 
+                    # Conversión segura de valores
                     vlr_pension = pd.to_numeric(row.iloc[10], errors='coerce') or 0
                     vlr_arp     = pd.to_numeric(row.iloc[8],  errors='coerce') or 0
                     vlr_caja    = pd.to_numeric(row.iloc[12], errors='coerce') or 0
