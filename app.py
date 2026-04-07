@@ -11,13 +11,8 @@ uploaded_file = st.file_uploader("Selecciona tu archivo detalle pase.xlsx / deta
 if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file, sheet_name="detalle.rpt", header=9)
-        df = df.dropna(subset=["Número"]).reset_index(drop=True)
+        df = df.dropna(subset=[df.columns[0]]).reset_index(drop=True)  # Limpia filas vacías
         df = df.fillna(0)
-
-        # Conversión segura de columnas numéricas
-        numeric_cols = [col for col in df.columns if df[col].dtype == 'float64' or df[col].dtype == 'object']
-        for col in numeric_cols:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
         st.success(f"✅ {len(df)} afiliados cargados correctamente")
 
@@ -37,21 +32,23 @@ if uploaded_file:
                 lines.append(header)
 
                 for idx, row in df.iterrows():
-                    seq = f"{idx+1:05d}"
-                    num_doc = str(row["Afiliado"]).strip()
-                    nombre = str(row["Afiliado"]).strip()
-                    partes = nombre.split()
-                    ap1 = (partes[0] if len(partes)>0 else "").ljust(20)
-                    ap2 = (partes[1] if len(partes)>1 else "").ljust(20)
-                    nom1 = (partes[2] if len(partes)>2 else "").ljust(20)
-                    nom2 = (" ".join(partes[3:]) if len(partes)>3 else "").ljust(20)
+                    # Columna B = Número de documento (índice 1)
+                    num_doc = str(row.iloc[1]).strip()
 
-                    eps = {"Nueva EPS": "EPS037", "SANITAS S.A.": "EPS005", "ASMET SALUD": "ESSC62", "MALLAMAS": "EPSIC5"}.get(str(row["Eps"]).strip(), "EPS037")
-                    ccf = str(row.get("Caja", "CCF32")).strip() if pd.notna(row.get("Caja")) else "CCF32"
+                    # Columna C = Nombre completo (índice 2)
+                    nombre_completo = str(row.iloc[2]).strip()
+                    partes = nombre_completo.split()
+                    ap1 = (partes[0] if len(partes) > 0 else "").ljust(20)
+                    ap2 = (partes[1] if len(partes) > 1 else "").ljust(20)
+                    nom1 = (partes[2] if len(partes) > 2 else "").ljust(20)
+                    nom2 = (" ".join(partes[3:]) if len(partes) > 3 else "").ljust(20)
 
-                    vlr_pension = int(row.iloc[10])
-                    vlr_arp     = int(row.iloc[8])
-                    vlr_caja    = int(row.iloc[12])
+                    eps = {"Nueva EPS": "EPS037", "SANITAS S.A.": "EPS005", "ASMET SALUD": "ESSC62", "MALLAMAS": "EPSIC5"}.get(str(row.iloc[6]).strip(), "EPS037")
+                    ccf = str(row.iloc[12]).strip() if pd.notna(row.iloc[12]) else "CCF32"
+
+                    vlr_pension = pd.to_numeric(row.iloc[10], errors='coerce') or 0
+                    vlr_arp     = pd.to_numeric(row.iloc[8],  errors='coerce') or 0
+                    vlr_caja    = pd.to_numeric(row.iloc[12], errors='coerce') or 0
 
                     ibc = round(vlr_pension / 0.16) if vlr_pension > 0 else salario_min
                     ibc = max(ibc, salario_min)
