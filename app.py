@@ -11,15 +11,13 @@ uploaded_file = st.file_uploader("Selecciona tu archivo detalle pase.xlsx / deta
 if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file, sheet_name="detalle.rpt", header=9)
+        
+        # FILTRO FUERTE: eliminamos filas de título y subtotales
         df = df.dropna(subset=[df.columns[0]]).reset_index(drop=True)
+        df = df[~df.iloc[:, 0].astype(str).str.contains("F3|FACTURA|Subtotales|Subtotales>>>|Vlr Total", case=False, na=False)]
         df = df.fillna(0)
 
-        # Conversión 100% segura de valores numéricos
-        df['Vlr_Pension'] = pd.to_numeric(df.iloc[:, 10], errors='coerce').fillna(0).astype(int)
-        df['Vlr_ARP']     = pd.to_numeric(df.iloc[:, 8],  errors='coerce').fillna(0).astype(int)
-        df['Vlr_Caja']    = pd.to_numeric(df.iloc[:, 12], errors='coerce').fillna(0).astype(int)
-
-        st.success(f"✅ {len(df)} afiliados cargados correctamente")
+        st.success(f"✅ {len(df)} afiliados válidos cargados")
 
         col1, col2 = st.columns(2)
         with col1:
@@ -38,8 +36,9 @@ if uploaded_file:
 
                 for idx, row in df.iterrows():
                     seq = f"{idx+1:05d}"
-                    num_doc = str(row.iloc[1]).strip()
-                    nombre_completo = str(row.iloc[2]).strip()
+                    num_doc = str(row.iloc[1]).strip()           # Columna B = Número de documento
+                    nombre_completo = str(row.iloc[2]).strip()   # Columna C = Nombre completo
+
                     partes = nombre_completo.split()
                     ap1 = (partes[0] if len(partes) > 0 else "").ljust(20)
                     ap2 = (partes[1] if len(partes) > 1 else "").ljust(20)
@@ -49,18 +48,18 @@ if uploaded_file:
                     eps = {"Nueva EPS": "EPS037", "SANITAS S.A.": "EPS005", "ASMET SALUD": "ESSC62", "MALLAMAS": "EPSIC5"}.get(str(row.iloc[6]).strip(), "EPS037")
                     ccf = str(row.iloc[12]).strip() if pd.notna(row.iloc[12]) else "CCF32"
 
-                    p = row['Vlr_Pension']
-                    a = row['Vlr_ARP']
-                    c = row['Vlr_Caja']
+                    vlr_pension = pd.to_numeric(row.iloc[10], errors='coerce') or 0
+                    vlr_arp     = pd.to_numeric(row.iloc[8],  errors='coerce') or 0
+                    vlr_caja    = pd.to_numeric(row.iloc[12], errors='coerce') or 0
 
-                    ibc = round(p / 0.16) if p > 0 else salario_min
+                    ibc = round(vlr_pension / 0.16) if vlr_pension > 0 else salario_min
                     ibc = max(ibc, salario_min)
-                    tasa_arp = round(a / ibc, 5) if ibc > 0 else 0.00522
+                    tasa_arp = round(vlr_arp / ibc, 5) if ibc > 0 else 0.00522
 
                     ibc_str = f"{int(ibc):09d}"
-                    pen_str = f"{int(p):012d}"
-                    arp_str = f"{int(a):012d}"
-                    caja_str = f"{int(c):012d}"
+                    pen_str = f"{int(vlr_pension):012d}"
+                    arp_str = f"{int(vlr_arp):012d}"
+                    caja_str = f"{int(vlr_caja):012d}"
                     tasa_str = f"{tasa_arp:.5f}"
 
                     aportes = f"3030303000{ibc_str}F00{ibc_str}001{ibc_str}001{ibc_str}0000001000.16000000{pen_str}000000000000000000000000{pen_str}000000000000000000000000000000000.04000000" \
