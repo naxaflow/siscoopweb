@@ -32,50 +32,50 @@ uploaded_file = st.file_uploader("Subir archivo Excel 'Detalle Pase'", type=["xl
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file, dtype=str)
-    # Limpiar filas basura
     df = df[~df.iloc[:, 0].astype(str).str.contains("FACTURA|SUBTOTAL|TOTAL|RESUMEN", na=False, case=False)]
     
-    # ====================== RENOMBRAR COLUMNAS PARA QUE SEA FÁCIL ======================
+    # Renombrar columnas para trabajar fácilmente
     df.columns = [f"col_{i}" for i in range(len(df.columns))]
     
-    st.subheader("🔍 Vista previa de tu Excel (con números de columna)")
-    st.dataframe(df.head(12))
+    # ====================== MAPPING EPS (oficial ASOPAGOS) ======================
+    eps_map = {
+        'Nueva EPS': '050',
+        'SANITAS S.A.': '053',
+        'ASMET SALUD': '054',
+        'Positiva': '058',
+        'MALLAMAS': '059',
+        'COLPATRIA ARL': '999',   # ARP no es EPS
+        '': '999'
+    }
     
-    # ====================== ASIGNAR COLUMNAS ======================
-    st.subheader("📌 Asignar columnas del Excel")
-    col_numero   = st.selectbox("Número de documento (cédula/NIT)", df.columns, index=1)
-    col_nombre   = st.selectbox("Nombre / Razón Social", df.columns, index=2)
-    col_eps      = st.selectbox("EPS", df.columns, index=6)
-    col_ccf      = st.selectbox("Caja de Compensación (CCF)", df.columns, index=7)
-    col_riesgo   = st.selectbox("Riesgo (R1, R2, R3...)", df.columns, index=8)
-    col_N        = st.selectbox("Columna N (para pensión)", df.columns, index=9)
-    col_salario  = st.selectbox("Salario", df.columns, index=10)
-    col_pension  = st.selectbox("Pensión (base)", df.columns, index=11)
-    col_salud    = st.selectbox("Salud", df.columns, index=12)
-    col_arp      = st.selectbox("ARP", df.columns, index=13)
+    # ====================== MAPPING CCF (oficial ASOPAGOS) ======================
+    ccf_map = {
+        'CCF32': '32',
+        'CCF13': '13',
+        '0': '00',
+        '': '00'
+    }
     
-    # Aplicar los nombres reales
-    df['numero']  = df[col_numero].astype(str).str.strip()
-    df['nombre']  = df[col_nombre].astype(str).str.strip()
-    df['eps']     = df[col_eps].astype(str).str.strip()
-    df['ccf']     = df[col_ccf].astype(str).str.strip()
-    df['riesgo']  = df[col_riesgo].astype(str).str.strip()
+    # ====================== ASIGNACIÓN AUTOMÁTICA DE COLUMNAS (según tu archivo) ======================
+    df['numero'] = df['col_1'].astype(str).str.strip().str.replace(',', '')
+    df['nombre'] = df['col_2'].astype(str).str.strip()
+    df['eps']    = df['col_6'].astype(str).str.strip()
+    df['ccf']    = df['col_12'].astype(str).str.strip()
+    df['riesgo'] = df[df.columns[-1]].astype(str).str.strip()   # última columna = R1/R2/R3...
     
     # ====================== CONVERSIONES NUMÉRICAS ======================
-    for c in [col_N, col_salario, col_pension, col_salud, col_arp]:
-        df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+    for c in ['col_9', 'col_17', 'col_11', 'col_7']:   # N, Salario, Pensión, Salud
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
     
-    # ====================== FECHA DE INGRESO (columna F = col_5) ======================
+    # ====================== FECHA INGRESO ======================
     df['fecha_ingreso'] = pd.to_datetime(df['col_5'], errors='coerce')
     
-    # ====================== MAPPING EPS / CCF ======================
-    # (por ahora vacío – si tienes el mapping completo, pégalo aquí)
-    eps_map = {}
-    ccf_map = {}
+    # ====================== APLICAR MAPPINGS ======================
     df['cod_eps'] = df['eps'].map(eps_map).fillna('999')
-    df['cod_ccf'] = df['ccf'].map(ccf_map).fillna('999')
+    df['cod_ccf'] = df['ccf'].map(ccf_map).fillna('00')
     
-    # ====================== RISK MAP CORRECTO (el que me diste) ======================
+    # ====================== RISK MAP (CORRECTO) ======================
     risk_map = {
         'R1': {'tasa': 0.00522, 'actividad': '1949101'},
         'R2': {'tasa': 0.01044, 'actividad': '2329001'},
@@ -87,27 +87,18 @@ if uploaded_file:
     df['tasa_arp'] = df['riesgo'].map(lambda r: risk_map.get(r, risk_map['R1'])['tasa'])
     df['cod_actividad'] = df['riesgo'].map(lambda r: risk_map.get(r, risk_map['R1'])['actividad'])
     
-    # ====================== PENSIÓN (N = 0 → sin pensión) ======================
-    df['pension'] = df.apply(lambda row: 0 if row[col_N] == 0 else row[col_pension], axis=1)
+    # ====================== PENSIÓN (Columna N = 0 → sin pensión) ======================
+    df['pension'] = df.apply(lambda row: 0 if row['col_9'] == 0 else row['col_11'], axis=1)
     
     # ====================== GENERAR TXT ======================
     def generar_planilla_txt(df, periodo, fecha_retiro, retiros_set):
         lineas = []
         for _, row in df.iterrows():
-            # Fecha ingreso solo si es del periodo actual
-            if pd.notna(row['fecha_ingreso']) and row['fecha_ingreso'].to_period('M') == periodo.to_period('M'):
-                fecha_ing_str = row['fecha_ingreso'].strftime('%Y%m%d')
-            else:
-                fecha_ing_str = ''
-            
-            # Fecha retiro solo para los marcados
-            if fecha_retiro and str(row['numero']).strip() in retiros_set:
-                fecha_ret_str = fecha_retiro.strftime('%Y%m%d')
-            else:
-                fecha_ret_str = ''
+            fecha_ing_str = row['fecha_ingreso'].strftime('%Y%m%d') if pd.notna(row['fecha_ingreso']) and row['fecha_ingreso'].to_period('M') == periodo.to_period('M') else ''
+            fecha_ret_str = fecha_retiro.strftime('%Y%m%d') if fecha_retiro and str(row['numero']).strip() in retiros_set else ''
             
             linea = f"{row.get('tipo_doc','')},{row['numero']},{row['nombre']},{row['cod_eps']},{row['cod_ccf']},"
-            linea += f"{row[col_salario]:.0f},{row['pension']:.0f},{row[col_salud]:.0f},{row['tasa_arp']:.5f},"
+            linea += f"{row['col_17']:.0f},{row['pension']:.0f},{row['col_7']:.0f},{row['tasa_arp']:.5f},"
             linea += f"{row['cod_actividad']},{fecha_ing_str},{fecha_ret_str},30"
             lineas.append(linea)
         return "\n".join(lineas)
@@ -121,5 +112,5 @@ if uploaded_file:
         mime="text/plain"
     )
     
-    st.success(f"✅ Planilla generada para periodo {mes:02d}/{año}")
+    st.success(f"✅ Planilla generada correctamente para {mes:02d}/{año}")
     st.dataframe(df.head(8))
