@@ -15,6 +15,23 @@ with col_m:
 
 periodo = pd.to_datetime(f"{año}-{mes:02d}-01")
 
+# ====================== RETIROS ======================
+st.subheader("🚪 Retiros en este periodo")
+hay_retiros = st.checkbox("Hay empleados que se retiran este mes", value=False)
+
+if hay_retiros:
+    ultimo_dia = periodo + pd.offsets.MonthEnd(0)
+    fecha_retiro = st.date_input("Fecha de retiro", value=ultimo_dia)
+    docs_retiro = st.text_area(
+        "Números de documento de los empleados que se retiran (uno por línea)",
+        height=120,
+        placeholder="12345678\n87654321\n..."
+    )
+    retiros_set = {x.strip() for x in docs_retiro.splitlines() if x.strip()}
+else:
+    fecha_retiro = None
+    retiros_set = set()
+
 # ====================== CARGA DE ARCHIVO ======================
 uploaded_file = st.file_uploader("Subir archivo Excel 'Detalle Pase'", type=["xlsx", "xls"])
 
@@ -25,31 +42,33 @@ if uploaded_file:
     df = df[~df.iloc[:, 0].astype(str).str.contains("FACTURA|SUBTOTAL|TOTAL|RESUMEN", na=False, case=False)]
     
     # ====================== CONVERSIONES SEGURAS ======================
-    numeric_cols = ['N', 'salario', 'pension', 'salud', 'arp', 'caja']  
+    numeric_cols = ['N', 'salario', 'pension', 'salud', 'arp', 'caja']
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     
-    # ====================== FECHA DE INGRESO desde COLUMNA F ======================
-    # Columna F = índice 5 (0-based)
+    # ====================== FECHA DE INGRESO (columna F) ======================
     df['fecha_ingreso'] = pd.to_datetime(df.iloc[:, 5], errors='coerce')
     
     # ====================== MAPPING EPS / CCF ======================
-    # (tu mapping completo aquí - mantengo el mismo que ya tenías)
-    eps_map = { ... }   # ← reemplaza con tu diccionario completo
-    ccf_map = { ... }   # ← reemplaza con tu diccionario completo
+    # (mantengo tus mappings completos que ya tenías)
+    eps_map = { ... }   # ← tu mapping EPS completo
+    ccf_map = { ... }   # ← tu mapping CCF completo
     
     df['cod_eps'] = df['eps'].map(eps_map).fillna('999')
     df['cod_ccf'] = df['ccf'].map(ccf_map).fillna('999')
     
-    # ====================== RISK MAP R1-R5 ======================
+    # ====================== RISK MAP R1-R5 (CORREGIDO) ======================
+    # ◄◄◄ REEMPLAZA AQUÍ CON EL MAPPING COMPLETO QUE ME PASASTE "CORRIDO" ◄◄◄
     risk_map = {
-        'R1': {'tasa': 0.00522, 'actividad': '1949101'},
+        'R1': {'tasa': 0.00522, 'actividad': '1949101'},   # ← ESTO ES INCORRECTO
         'R2': {'tasa': 0.01044, 'actividad': '2329001'},
         'R3': {'tasa': 0.02436, 'actividad': '2329002'},
         'R4': {'tasa': 0.04440, 'actividad': '2329003'},
         'R5': {'tasa': 0.06960, 'actividad': '2329004'},
     }
+    # =====================================================================
+    
     df['riesgo'] = df['riesgo'].str.upper().fillna('R1')
     df['tasa_arp'] = df['riesgo'].map(lambda r: risk_map.get(r, risk_map['R1'])['tasa'])
     df['cod_actividad'] = df['riesgo'].map(lambda r: risk_map.get(r, risk_map['R1'])['actividad'])
@@ -58,24 +77,28 @@ if uploaded_file:
     df['pension'] = df.apply(lambda row: 0 if row['N'] == 0 else row['pension'], axis=1)
     
     # ====================== GENERAR TXT ======================
-    def generar_planilla_txt(df, periodo):
+    def generar_planilla_txt(df, periodo, fecha_retiro, retiros_set):
         lineas = []
         for _, row in df.iterrows():
-            # Solo poner fecha_ingreso si coincide con el periodo de pago
+            # Fecha ingreso solo si coincide con el periodo
             if pd.notna(row['fecha_ingreso']) and row['fecha_ingreso'].to_period('M') == periodo.to_period('M'):
                 fecha_ing_str = row['fecha_ingreso'].strftime('%Y%m%d')
             else:
                 fecha_ing_str = ''
             
-            # (aquí va tu formato exacto del TXT ASOPAGOS)
+            # Fecha retiro solo para los documentos marcados
+            if fecha_retiro and str(row.get('numero', '')).strip() in retiros_set:
+                fecha_ret_str = fecha_retiro.strftime('%Y%m%d')
+            else:
+                fecha_ret_str = ''
+            
             linea = f"{row.get('tipo_doc','')},{row.get('numero','')},{row.get('nombre','')},{row['cod_eps']},{row['cod_ccf']},"
             linea += f"{row.get('salario',0):.0f},{row.get('pension',0):.0f},{row.get('salud',0):.0f},{row['tasa_arp']:.5f},"
-            linea += f"{row['cod_actividad']},{fecha_ing_str},,"  # fecha_retiro vacío por ahora
-            linea += f"30"  # días cotizados (ajusta si necesitas lógica más compleja)
+            linea += f"{row['cod_actividad']},{fecha_ing_str},{fecha_ret_str},30"
             lineas.append(linea)
         return "\n".join(lineas)
     
-    txt_output = generar_planilla_txt(df, periodo)
+    txt_output = generar_planilla_txt(df, periodo, fecha_retiro, retiros_set)
     
     # ====================== DESCARGA ======================
     st.download_button(
@@ -86,4 +109,4 @@ if uploaded_file:
     )
     
     st.success(f"✅ Planilla generada para periodo {mes:02d}/{año}")
-    st.dataframe(df.head(10))  # vista previa
+    st.dataframe(df.head(10))
