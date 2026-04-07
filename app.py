@@ -11,7 +11,7 @@ uploaded_file = st.file_uploader("Selecciona tu archivo detalle pase.xlsx / deta
 if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file, sheet_name="detalle.rpt", header=9)
-        df = df.dropna(subset=[df.columns[0]]).reset_index(drop=True)  # Limpia filas vacías
+        df = df.dropna(subset=[df.columns[0]]).reset_index(drop=True)
         df = df.fillna(0)
 
         st.success(f"✅ {len(df)} afiliados cargados correctamente")
@@ -32,11 +32,9 @@ if uploaded_file:
                 lines.append(header)
 
                 for idx, row in df.iterrows():
-                    # Columna B = Número de documento (índice 1)
-                    num_doc = str(row.iloc[1]).strip()
-
-                    # Columna C = Nombre completo (índice 2)
-                    nombre_completo = str(row.iloc[2]).strip()
+                    seq = f"{idx+1:05d}"                    # ← Esta línea faltaba
+                    num_doc = str(row.iloc[1]).strip()      # Columna B = Número documento
+                    nombre_completo = str(row.iloc[2]).strip()  # Columna C = Nombre completo
                     partes = nombre_completo.split()
                     ap1 = (partes[0] if len(partes) > 0 else "").ljust(20)
                     ap2 = (partes[1] if len(partes) > 1 else "").ljust(20)
