@@ -12,7 +12,8 @@ if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file, sheet_name="detalle.rpt", header=9)
         df = df.dropna(subset=["Número"]).reset_index(drop=True)
-        
+        df = df.fillna(0)  # ← Esta línea arregla el error NaN
+
         st.success(f"✅ {len(df)} afiliados cargados correctamente")
 
         col1, col2 = st.columns(2)
@@ -43,9 +44,9 @@ if uploaded_file:
                     eps = {"Nueva EPS": "EPS037", "SANITAS S.A.": "EPS005", "ASMET SALUD": "ESSC62", "MALLAMAS": "EPSIC5"}.get(str(row["Eps"]).strip(), "EPS037")
                     ccf = str(row.get("Caja", "CCF32")).strip() if pd.notna(row.get("Caja")) else "CCF32"
 
-                    vlr_pension = float(row.iloc[10] if len(row) > 10 else 0)
-                    vlr_arp = float(row.iloc[8] if len(row) > 8 else 0)
-                    vlr_caja = float(row.iloc[12] if len(row) > 12 else 0)
+                    vlr_pension = pd.to_numeric(row.iloc[10], errors='coerce') or 0
+                    vlr_arp = pd.to_numeric(row.iloc[8], errors='coerce') or 0
+                    vlr_caja = pd.to_numeric(row.iloc[12], errors='coerce') or 0
 
                     ibc = round(vlr_pension / 0.16) if vlr_pension > 0 else salario_min
                     ibc = max(ibc, salario_min)
