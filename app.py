@@ -14,6 +14,11 @@ if uploaded_file:
         df = df.dropna(subset=["Número"]).reset_index(drop=True)
         df = df.fillna(0)
 
+        # Conversión segura de columnas numéricas
+        numeric_cols = [col for col in df.columns if df[col].dtype == 'float64' or df[col].dtype == 'object']
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
         st.success(f"✅ {len(df)} afiliados cargados correctamente")
 
         col1, col2 = st.columns(2)
@@ -36,17 +41,17 @@ if uploaded_file:
                     num_doc = str(row["Afiliado"]).strip()
                     nombre = str(row["Afiliado"]).strip()
                     partes = nombre.split()
-                    ap1 = (partes[0] if len(partes) > 0 else "").ljust(20)
-                    ap2 = (partes[1] if len(partes) > 1 else "").ljust(20)
-                    nom1 = (partes[2] if len(partes) > 2 else "").ljust(20)
-                    nom2 = (" ".join(partes[3:]) if len(partes) > 3 else "").ljust(20)
+                    ap1 = (partes[0] if len(partes)>0 else "").ljust(20)
+                    ap2 = (partes[1] if len(partes)>1 else "").ljust(20)
+                    nom1 = (partes[2] if len(partes)>2 else "").ljust(20)
+                    nom2 = (" ".join(partes[3:]) if len(partes)>3 else "").ljust(20)
 
                     eps = {"Nueva EPS": "EPS037", "SANITAS S.A.": "EPS005", "ASMET SALUD": "ESSC62", "MALLAMAS": "EPSIC5"}.get(str(row["Eps"]).strip(), "EPS037")
                     ccf = str(row.get("Caja", "CCF32")).strip() if pd.notna(row.get("Caja")) else "CCF32"
 
-                    vlr_pension = pd.to_numeric(row.iloc[10], errors='coerce') or 0
-                    vlr_arp     = pd.to_numeric(row.iloc[8],  errors='coerce') or 0
-                    vlr_caja    = pd.to_numeric(row.iloc[12], errors='coerce') or 0
+                    vlr_pension = int(row.iloc[10])
+                    vlr_arp     = int(row.iloc[8])
+                    vlr_caja    = int(row.iloc[12])
 
                     ibc = round(vlr_pension / 0.16) if vlr_pension > 0 else salario_min
                     ibc = max(ibc, salario_min)
