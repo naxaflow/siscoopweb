@@ -12,7 +12,7 @@ if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file, sheet_name="detalle.rpt", header=9)
         df = df.dropna(subset=["Número"]).reset_index(drop=True)
-        df = df.fillna(0)  # ← Esta línea arregla el error NaN
+        df = df.fillna(0)                                   # ← Soluciona NaN
 
         st.success(f"✅ {len(df)} afiliados cargados correctamente")
 
@@ -45,8 +45,8 @@ if uploaded_file:
                     ccf = str(row.get("Caja", "CCF32")).strip() if pd.notna(row.get("Caja")) else "CCF32"
 
                     vlr_pension = pd.to_numeric(row.iloc[10], errors='coerce') or 0
-                    vlr_arp = pd.to_numeric(row.iloc[8], errors='coerce') or 0
-                    vlr_caja = pd.to_numeric(row.iloc[12], errors='coerce') or 0
+                    vlr_arp     = pd.to_numeric(row.iloc[8],  errors='coerce') or 0
+                    vlr_caja    = pd.to_numeric(row.iloc[12], errors='coerce') or 0
 
                     ibc = round(vlr_pension / 0.16) if vlr_pension > 0 else salario_min
                     ibc = max(ibc, salario_min)
@@ -78,4 +78,4 @@ if uploaded_file:
     except Exception as e:
         st.error(f"Error: {str(e)}")
 
-st.caption("SiscoopWeb © 2026 - Generador Planilla ASOPAGOS | Conectado a tu GitHub")
+st.caption("SiscoopWeb © 2026 - Generador Planilla ASOPAGOS")
